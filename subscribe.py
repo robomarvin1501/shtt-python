@@ -22,6 +22,7 @@ def subscriber(use_tls, channel, broker_addr=("localhost", SHTT.PORT), subscribe
     subscription_message = SHTT.SHTTMessage()
     subscription_message.channel = channel
     subscription_message.message_type = SHTT.SUBSCRIBE
+    subscription_message.data = str(subscriber_addr[1])
     SHTT.send_message(subscription_message.encode(), use_tls, broker_addr)
 
     shutdown = queue.Queue()

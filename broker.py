@@ -11,8 +11,9 @@ SUBSCRIBER_LIFETIME = 30
 
 
 class Subscription:
-    def __init__(self):
+    def __init__(self, port=SHTT.PORT):
         self.channels = set()
+        self.port: int = port
         self.last_alive = 0
 
     def add_channel(self, channel: str):
@@ -40,6 +41,7 @@ def server(use_tls, addr=("localhost", SHTT.PORT)):
 
     while True:
         client_sock, client_addr = server.accept()
+        print(client_addr)
         # TODO logging
         # print(f"Connection from {client_addr}")
 
@@ -54,23 +56,27 @@ def server(use_tls, addr=("localhost", SHTT.PORT)):
             print(f"Received: {shtt_message}")
             if shtt_message.message_type == SHTT.PUBLISH:
                 start = time.time()
-                for addr in list(subscriptions.keys()):
-                    if start - subscriptions[addr].last_alive > SUBSCRIBER_LIFETIME:
-                        del subscriptions[addr]
+                for address in list(subscriptions.keys()):
+                    if start - subscriptions[address].last_alive > SUBSCRIBER_LIFETIME:
+                        del subscriptions[address]
                         continue
-                    if shtt_message.channel in subscriptions[addr].channels:
-                        SHTT.send_message(data, use_tls, (addr[0], SHTT.PORT))
+                    if shtt_message.channel in subscriptions[address].channels:
+                        print(f"Sending {data} to {address} on {
+                              shtt_message.channel}")
+                        SHTT.send_message(
+                            data, use_tls, (address, subscriptions[address].port))
             elif shtt_message.message_type == SHTT.SUBSCRIBE:
                 if client_addr not in subscriptions:
-                    subscriptions[client_addr] = Subscription()
-                subscriptions[client_addr].add_channel(shtt_message.channel)
+                    subscriptions[client_addr[0]] = Subscription(
+                        int(shtt_message.data))
+                subscriptions[client_addr[0]].add_channel(shtt_message.channel)
             elif shtt_message.message_type == SHTT.UNSUBSCRIBE:
                 if client_addr in subscriptions:
-                    subscriptions[client_addr].channels.remove(
+                    subscriptions[client_addr[0]].channels.remove(
                         shtt_message.channel)
             elif shtt_message.message_type == SHTT.KEEP_ALIVE:
                 if client_addr in subscriptions:
-                    subscriptions[client_addr].keep_alive()
+                    subscriptions[client_addr[0]].keep_alive()
             elif shtt_message.message_type == SHTT.DISCONNECT:
                 if client_addr in subscriptions:
                     del subscriptions[client_addr]

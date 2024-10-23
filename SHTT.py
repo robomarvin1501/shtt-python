@@ -66,6 +66,9 @@ class SHTTMessage:
             channel_start = 4
             self.channel = data[channel_start:channel_start +
                                 channel_length].decode()
+            port_location = channel_start + channel_length + 2
+            self.data = data[port_location: port_location +
+                             int.from_bytes(data[port_location - 2: port_location])].decode()
         elif self.message_type == UNSUBSCRIBE:
             channel_length = int.from_bytes(data[2:4], ENDIAN)
             channel_start = 4
@@ -95,6 +98,8 @@ class SHTTMessage:
             + SUBSCRIBE.to_bytes(SIZE_MESSAGE_TYPE, ENDIAN)
             + len(self.channel).to_bytes(MAX_CHANNEL_BYTES, ENDIAN)
             + self.channel.encode()
+            + (5).to_bytes(MAX_MESSAGE_BYTES, ENDIAN)
+            + self.data.encode()
         )
 
     def _encode_unsubscribe(self):
