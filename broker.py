@@ -3,6 +3,7 @@ import SHTT
 import socket
 import time
 import argparse
+import os
 
 # TODO needs two different servers, one TLS enabled, one not, on different
 # ports
@@ -24,12 +25,13 @@ class Subscription:
         self.last_alive = time.time()
 
 
-def server(use_tls, addr=("localhost", SHTT.PORT)):
+def server(tls_data: str, addr=("localhost", SHTT.PORT)):
     server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     server.bind(addr)
     server.listen(5)
 
-    context = SHTT.create_tls_context() if use_tls else None
+    use_tls = len(tls_data) > 0
+    context = SHTT.create_tls_context() if use_tls > 0 else None
     shtt_message = SHTT.SHTTMessage()
 
     subscriptions: dict[str, Subscription] = dict()
@@ -53,6 +55,9 @@ def server(use_tls, addr=("localhost", SHTT.PORT)):
         try:
             data = sock.recv(4096)
             shtt_message.decode(data)
+            if config.username and config.password:
+                if shtt_message.username != config.username or shtt_message.password != config.password:
+                    continue
             print(f"Received: {shtt_message}")
             if shtt_message.message_type == SHTT.PUBLISH:
                 start = time.time()
@@ -62,7 +67,7 @@ def server(use_tls, addr=("localhost", SHTT.PORT)):
                         continue
                     if shtt_message.channel in subscriptions[address].channels:
                         print(f"Sending {data} to {address} on {
-                              shtt_message.channel}")
+                        shtt_message.channel}")
                         SHTT.send_message(
                             data, use_tls, (address, subscriptions[address].port))
             elif shtt_message.message_type == SHTT.SUBSCRIBE:
@@ -91,8 +96,23 @@ def server(use_tls, addr=("localhost", SHTT.PORT)):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
         description="SHTT broker with optional TLS.")
-    parser.add_argument("--tls", action="store_true",
-                        help="Enable TLS encryption.")
+    parser.add_argument("--config", type=str, help="Path to the config file.")
     args = parser.parse_args()
 
-    server(use_tls=args.tls)
+    if os.path.exists(args.config):
+        try:
+            import config
+
+            if not os.path.exists(config.tls_path):
+                tls = False
+                tls_data = ""
+            else:
+                with open(config.tls_path, "r") as f:
+                    tls_data = f.read()
+                tls = True
+                # TODO load TLS file
+        except:
+            tls = False
+            tls_data = ""
+
+    server(tls_data)
